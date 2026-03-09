@@ -167,8 +167,8 @@ const value = 1;
 `);
 });
 
-// Verifies extra blank lines left in the untouched remainder collapse to one import boundary gap.
-test('collapses leftover blank lines after rewritten imports', () => {
+// Verifies extra blank lines from the original import boundary are preserved instead of collapsed away.
+test('preserves extra blank lines after rewritten imports', () => {
     const code = `import z from 'z';
 import a from 'a';
 
@@ -180,11 +180,13 @@ const value = 1;
     expect(sortCode({ code })).toBe(`import a from 'a';
 import z from 'z';
 
+
+
 const value = 1;
 `);
 });
 
-// Verifies boundary cleanup removes only blank lines and not indentation on the next real line.
+// Verifies boundary cleanup preserves both the original extra gap and the indentation on the next real line.
 test('preserves indentation on the first non-empty line after imports', () => {
     const code = `import z from 'z';
 import a from 'a';
@@ -195,6 +197,7 @@ import a from 'a';
 
     expect(sortCode({ code })).toBe(`import a from 'a';
 import z from 'z';
+
 
     const value = 1;
 `);

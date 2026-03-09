@@ -19,7 +19,8 @@ const generatedImportSeparatorRegex = new RegExp(
 );
 
 const leadingBlankLinesRegex = /^(?:[ \t]*\r?\n)+/;
-const trailingBlankLinesAtEofRegex = /(?:\r?\n[ \t]*)+$/;
+const trailingLineBreaksRegex = /(?:[ \t]*\r?\n)+$/;
+const lineBreakUnitRegex = /[ \t]*\r?\n/g;
 
 /**
  * This function generates a code string from the passed nodes.
@@ -59,6 +60,11 @@ export const getCodeFromAst = ({
         ...(interpreter ? [interpreter] : []),
         ...directives,
     ];
+    const originalBoundaryLeadingBlankLines =
+        getOriginalBoundaryLeadingBlankLines(
+            originalCode,
+            nodesToRemoveFromCode,
+        );
 
     const codeWithoutImportsAndInterpreter = removeNodesFromOriginalCode(
         originalCode,
@@ -78,7 +84,11 @@ export const getCodeFromAst = ({
     });
     const updatedImportsEnd = injectIdx + updatedImports.length;
 
-    return normalizeImportBoundary(updatedCode, updatedImportsEnd);
+    return normalizeImportBoundary(
+        updatedCode,
+        updatedImportsEnd,
+        originalBoundaryLeadingBlankLines,
+    );
 };
 
 const createCodeFromAST = ({
@@ -132,20 +142,60 @@ const assembleUpdatedCode = ({
     };
 };
 
+const getOriginalBoundaryLeadingBlankLines = (
+    originalCode: string,
+    nodesToRemoveFromCode: Array<{ end?: number | null }>,
+) => {
+    const boundaryEnd = nodesToRemoveFromCode.reduce(
+        (furthestEnd, node) =>
+            typeof node.end === 'number'
+                ? Math.max(furthestEnd, node.end)
+                : furthestEnd,
+        0,
+    );
+
+    return (
+        originalCode.slice(boundaryEnd).match(leadingBlankLinesRegex)?.[0] ?? ''
+    );
+};
+
 const normalizeImportBoundary = (
     updatedCode: string,
     updatedImportsEnd: number,
+    originalBoundaryLeadingBlankLines: string,
 ) => {
     const beforeBoundary = updatedCode.slice(0, updatedImportsEnd);
     const untouchedRemainder = updatedCode.slice(updatedImportsEnd);
-    const remainderWithoutLeadingBlankLines = untouchedRemainder.replace(
+    const leadingBlankLines = untouchedRemainder.match(
         leadingBlankLinesRegex,
-        '',
+    )?.[0];
+
+    if (!leadingBlankLines) {
+        return updatedCode;
+    }
+
+    const remainderWithoutLeadingBlankLines = untouchedRemainder.slice(
+        leadingBlankLines.length,
     );
 
     if (remainderWithoutLeadingBlankLines.trim().length === 0) {
-        return beforeBoundary.replace(trailingBlankLinesAtEofRegex, '\n');
+        return beforeBoundary.replace(trailingLineBreaksRegex, '\n');
     }
 
-    return beforeBoundary + remainderWithoutLeadingBlankLines;
+    const trailingLineBreaks = beforeBoundary.match(
+        trailingLineBreaksRegex,
+    )?.[0];
+    const trailingLineBreakUnits =
+        trailingLineBreaks?.match(lineBreakUnitRegex) ?? [];
+    const originalBoundaryLineBreakUnits =
+        originalBoundaryLeadingBlankLines.match(lineBreakUnitRegex) ?? [];
+    const preservedLeadingLineBreaks = originalBoundaryLineBreakUnits
+        .slice(trailingLineBreakUnits.length)
+        .join('');
+
+    return (
+        beforeBoundary +
+        preservedLeadingLineBreaks +
+        remainderWithoutLeadingBlankLines
+    );
 };

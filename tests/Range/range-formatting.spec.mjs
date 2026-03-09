@@ -39,7 +39,7 @@ async function formatRange(code, options = {}) {
     });
 }
 
-function expectSingleBlankLineBetween(code, before, after) {
+function expectLineBreaksBetween(code, before, after, lineBreakCount) {
     const beforeIdx = code.indexOf(before);
     expect(beforeIdx).toBeGreaterThanOrEqual(0);
 
@@ -47,16 +47,18 @@ function expectSingleBlankLineBetween(code, before, after) {
     expect(afterIdx).toBeGreaterThanOrEqual(0);
 
     expect(code.slice(beforeIdx + before.length, afterIdx)).toMatch(
-        /^(?:\r?\n){2}$/,
+        new RegExp(`^(?:\\r?\\n){${lineBreakCount}}$`),
     );
+}
+
+function expectSingleBlankLineBetween(code, before, after) {
+    expectLineBreaksBetween(code, before, after, 2);
 }
 
 // Verifies partial Prettier formatting leaves exactly one blank line between imports and following code.
 test('range formatting keeps one blank line after imports', async () => {
     const code = `import z from 'z';
 import a from 'a';
-
-
 
 const value=1;
 `;
@@ -66,7 +68,7 @@ const value=1;
         rangeEnd: code.length,
     });
 
-    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value=1;');
+    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value = 1;');
 });
 
 // Verifies the original single-import repro keeps only one blank line when the selected range ends at the import line.
@@ -95,13 +97,37 @@ test('range formatting keeps one blank line for the original single-import repro
 `);
 });
 
+// Verifies the import boundary keeps any extra blank lines that were already present after the original single-import repro.
+test('range formatting preserves more than two leftover blank lines in the original repro shape', async () => {
+    const code = `import { Component, OnInit } from "@angular/core";
+
+
+
+
+//
+`;
+    const importEnd = code.indexOf('\n\n') + 1;
+
+    const output = await formatRange(code, {
+        importOrder: angularSeparatedImportOrder,
+        importOrderParserPlugins: [
+            'typescript',
+            'classProperties',
+            'decorators',
+        ],
+        importOrderTypeScriptVersion: '4.7.4',
+        rangeStart: 0,
+        rangeEnd: importEnd,
+    });
+
+    expect(output).toBe(code);
+});
+
 // Verifies range formatting preserves one separator between import groups and one before the next comment/code block.
 test('range formatting keeps one blank line between separated groups and before the next comment block', async () => {
     const code = `import b from './b';
 import z from 'z';
 import a from 'a';
-
-
 
 // next block
 const value = 1;
@@ -123,7 +149,6 @@ test('range formatting keeps directives and one blank line after imports', async
 import z from 'z';
 import a from 'a';
 
-
 const value=1;
 `;
 
@@ -143,8 +168,6 @@ test('range formatting still works when rangeStart begins inside the import bloc
     const code = `import z from 'z';
 import a from 'a';
 
-
-
 const value=1;
 `;
 
@@ -153,13 +176,14 @@ const value=1;
         rangeEnd: code.length,
     });
 
-    expect(output).toContain("import a from 'a';");
-    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value=1;');
+    expect(output).toContain('import a from "a";');
+    expect(output).toContain('import z from "z";');
+    expectSingleBlankLineBetween(output, 'import z from "z";', 'const value = 1;');
 });
 
 // Verifies CRLF input plus range formatting still produces a single import/code separator.
 test('CRLF range formatting keeps exactly one blank line after imports', async () => {
-    const code = "import z from 'z';\r\nimport a from 'a';\r\n\r\n\r\nconst value=1;\r\n";
+    const code = "import z from 'z';\r\nimport a from 'a';\r\n\r\nconst value=1;\r\n";
 
     const output = await formatRange(code, {
         endOfLine: 'crlf',
@@ -168,7 +192,7 @@ test('CRLF range formatting keeps exactly one blank line after imports', async (
     });
 
     expect(output).toContain('\r\n');
-    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value=1;');
+    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value = 1;');
 });
 
 // Verifies range formatting preserves one separator around unsortable side-effect chunks.
@@ -177,7 +201,6 @@ test('range formatting keeps one blank line around side-effect chunks', async ()
 import './styles.css';
 import z from 'z';
 import a from 'a';
-
 
 const value = 1;
 `;
