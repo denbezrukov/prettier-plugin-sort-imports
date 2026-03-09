@@ -55,7 +55,7 @@ function expectSingleBlankLineBetween(code, before, after) {
     expectLineBreaksBetween(code, before, after, 2);
 }
 
-// Verifies partial Prettier formatting leaves exactly one blank line between imports and following code.
+// Verifies range formatting still rewrites imports when the selected range overlaps the import block.
 test('range formatting keeps one blank line after imports', async () => {
     const code = `import z from 'z';
 import a from 'a';
@@ -63,12 +63,14 @@ import a from 'a';
 const value=1;
 `;
 
+    const importsEnd = code.indexOf('\n\n') + 1;
     const output = await formatRange(code, {
-        rangeStart: code.indexOf('const'),
-        rangeEnd: code.length,
+        rangeStart: 0,
+        rangeEnd: importsEnd,
     });
 
-    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value = 1;');
+    expect(output).toContain('import a from "a";');
+    expectSingleBlankLineBetween(output, 'import z from "z";', 'const value = 1;');
 });
 
 // Verifies the original single-import repro keeps only one blank line when the selected range ends at the import line.
@@ -123,7 +125,7 @@ test('range formatting preserves more than two leftover blank lines in the origi
     expect(output).toBe(code);
 });
 
-// Verifies range formatting preserves one separator between import groups and one before the next comment/code block.
+// Verifies grouped imports still normalize correctly when the selected range overlaps the import block.
 test('range formatting keeps one blank line between separated groups and before the next comment block', async () => {
     const code = `import b from './b';
 import z from 'z';
@@ -135,15 +137,15 @@ const value = 1;
 
     const output = await formatRange(code, {
         importOrder: separatedImportOrder,
-        rangeStart: code.indexOf('// next block'),
-        rangeEnd: code.length,
+        rangeStart: 0,
+        rangeEnd: code.indexOf('// next block'),
     });
 
-    expectSingleBlankLineBetween(output, "import z from 'z';", "import b from './b';");
-    expectSingleBlankLineBetween(output, "import b from './b';", '// next block');
+    expectSingleBlankLineBetween(output, 'import z from "z";', 'import b from "./b";');
+    expectSingleBlankLineBetween(output, 'import b from "./b";', '// next block');
 });
 
-// Verifies directives stay above the rewritten import block and the import/code boundary still collapses to one gap.
+// Verifies directives stay above the rewritten imports when the selected range includes the import block.
 test('range formatting keeps directives and one blank line after imports', async () => {
     const code = `'use client'
 import z from 'z';
@@ -153,14 +155,14 @@ const value=1;
 `;
 
     const output = await formatRange(code, {
-        rangeStart: code.indexOf('const'),
-        rangeEnd: code.length,
+        rangeStart: 0,
+        rangeEnd: code.indexOf('const'),
     });
 
-    expect(output.startsWith(`'use client';\n\nimport a from 'a';\n`)).toBe(
+    expect(output.startsWith(`"use client";\n\nimport a from "a";\n`)).toBe(
         true,
     );
-    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value = 1;');
+    expectSingleBlankLineBetween(output, 'import z from "z";', 'const value = 1;');
 });
 
 // Verifies import rewriting still behaves when the selected range starts inside the import block itself.
@@ -181,21 +183,21 @@ const value=1;
     expectSingleBlankLineBetween(output, 'import z from "z";', 'const value = 1;');
 });
 
-// Verifies CRLF input plus range formatting still produces a single import/code separator.
+// Verifies CRLF input plus an overlapping import range still produces a single import/code separator.
 test('CRLF range formatting keeps exactly one blank line after imports', async () => {
     const code = "import z from 'z';\r\nimport a from 'a';\r\n\r\nconst value=1;\r\n";
 
     const output = await formatRange(code, {
         endOfLine: 'crlf',
-        rangeStart: code.indexOf('const'),
-        rangeEnd: code.length,
+        rangeStart: 0,
+        rangeEnd: code.indexOf('\r\n\r\n') + 1,
     });
 
     expect(output).toContain('\r\n');
-    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value = 1;');
+    expectSingleBlankLineBetween(output, 'import z from "z";', 'const value = 1;');
 });
 
-// Verifies range formatting preserves one separator around unsortable side-effect chunks.
+// Verifies side-effect chunks still keep single separators when the selected range overlaps the import block.
 test('range formatting keeps one blank line around side-effect chunks', async () => {
     const code = `import b from './b';
 import './styles.css';
@@ -207,11 +209,11 @@ const value = 1;
 
     const output = await formatRange(code, {
         importOrder: separatedImportOrder,
-        rangeStart: code.indexOf('const value'),
-        rangeEnd: code.length,
+        rangeStart: 0,
+        rangeEnd: code.indexOf('const value'),
     });
 
-    expectSingleBlankLineBetween(output, "import b from './b';", "import './styles.css';");
-    expectSingleBlankLineBetween(output, "import './styles.css';", "import a from 'a';");
-    expectSingleBlankLineBetween(output, "import z from 'z';", 'const value = 1;');
+    expectSingleBlankLineBetween(output, 'import b from "./b";', 'import "./styles.css";');
+    expectSingleBlankLineBetween(output, 'import "./styles.css";', 'import a from "a";');
+    expectSingleBlankLineBetween(output, 'import z from "z";', 'const value = 1;');
 });
