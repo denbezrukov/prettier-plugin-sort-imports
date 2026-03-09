@@ -63,7 +63,7 @@ export const getCodeFromAst = ({
     const originalBoundaryLeadingBlankLines =
         getOriginalBoundaryLeadingBlankLines(
             originalCode,
-            nodesToRemoveFromCode,
+            allOriginalImportNodes,
         );
 
     const codeWithoutImportsAndInterpreter = removeNodesFromOriginalCode(
@@ -144,9 +144,9 @@ const assembleUpdatedCode = ({
 
 const getOriginalBoundaryLeadingBlankLines = (
     originalCode: string,
-    nodesToRemoveFromCode: Array<{ end?: number | null }>,
+    allOriginalImportNodes: Array<{ end?: number | null }>,
 ) => {
-    const boundaryEnd = nodesToRemoveFromCode.reduce(
+    const boundaryEnd = allOriginalImportNodes.reduce(
         (furthestEnd, node) =>
             typeof node.end === 'number'
                 ? Math.max(furthestEnd, node.end)

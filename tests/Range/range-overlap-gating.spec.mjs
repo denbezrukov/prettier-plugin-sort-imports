@@ -19,6 +19,13 @@ async function formatWithPlugin(code, options = {}) {
     });
 }
 
+async function formatWithoutSortPlugin(code, options = {}) {
+    return format(code, {
+        endOfLine: 'lf',
+        ...options,
+    });
+}
+
 function expectInOrder(code, firstNeedle, secondNeedle) {
     const firstIndex = code.indexOf(firstNeedle);
     const secondIndex = code.indexOf(secondNeedle);
@@ -63,18 +70,22 @@ const value=1;
 </template>
 `;
 
-    const output = await formatWithPlugin(code, {
+    const rangeOptions = {
         filepath: 'component.vue',
         parser: 'vue',
         rangeStart: code.indexOf('const value'),
         rangeEnd: code.indexOf('</script>'),
-    });
+    };
+    const output = await formatWithPlugin(code, rangeOptions);
+    const expected = await formatWithoutSortPlugin(code, rangeOptions);
 
+    expect(output).toBe(expected);
     expectInOrder(output, 'import z', 'import a');
     expect(output).not.toContain(`import a from "a";\nimport z from "z";`);
+    expect(output).toContain('const value = 1;');
 });
 
-// Verifies Ember template-tag files also leave imports alone when the partial range is below the import block.
+// Verifies Ember template-tag files leave imports alone while matching the upstream formatter output for the selected range.
 test('range formatting outside imports does not sort imports in ember template-tag files', async () => {
     const code = `import z from 'z';
 import a from 'a';
@@ -86,18 +97,26 @@ export default <template>
 </template>;
 `;
 
-    const output = await format(code, {
+    const rangeOptions = {
         endOfLine: 'lf',
         filepath: 'component.gjs',
+        parser: 'ember-template-tag',
+        rangeStart: code.indexOf('const value'),
+        rangeEnd: code.length,
+    };
+    const output = await format(code, {
+        ...rangeOptions,
         importOrder: defaultImportOrder,
         importOrderParserPlugins: ['jsx'],
         importOrderSafeSideEffects: [],
-        parser: 'ember-template-tag',
         plugins: ['prettier-plugin-ember-template-tag', plugin],
-        rangeStart: code.indexOf('const value'),
-        rangeEnd: code.length,
+    });
+    const expected = await formatWithoutSortPlugin(code, {
+        ...rangeOptions,
+        plugins: ['prettier-plugin-ember-template-tag'],
     });
 
+    expect(output).toBe(expected);
     expectInOrder(output, `import z from 'z';`, `import a from 'a';`);
     expect(output).not.toContain(`import a from 'a';\nimport z from 'z';`);
 });

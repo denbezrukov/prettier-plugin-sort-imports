@@ -186,6 +186,27 @@ const value = 1;
 `);
 });
 
+// Verifies original extra spacing is preserved even when the next top-level item is a comment.
+test('preserves extra blank lines before the next top-level comment', () => {
+    const code = `import z from 'z';
+import a from 'a';
+
+
+
+// next block
+const value = 1;
+`;
+
+    expect(sortCode({ code })).toBe(`import a from 'a';
+import z from 'z';
+
+
+
+// next block
+const value = 1;
+`);
+});
+
 // Verifies boundary cleanup preserves both the original extra gap and the indentation on the next real line.
 test('preserves indentation on the first non-empty line after imports', () => {
     const code = `import z from 'z';
